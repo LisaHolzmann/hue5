@@ -108,42 +108,7 @@ public class SudokuSolver implements ISodukoSolver {
         } catch (InterruptedException | ExecutionException ex) {
             return false;
         }
-//        // row checker
-//        for (int row = 0; row < 9; row++) {
-//            for (int col = 0; col < 8; col++) {
-//                for (int col2 = col + 1; col2 < 9; col2++) {
-//                    if (rawSudoku[row][col] == rawSudoku[row][col2]) {
-//                        return false;
-//                    }
-//                }
-//            }
-//        }
-//
-//        // column checker
-//        for (int col = 0; col < 9; col++) {
-//            for (int row = 0; row < 8; row++) {
-//                for (int row2 = row + 1; row2 < 9; row2++) {
-//                    if (rawSudoku[row][col] == rawSudoku[row2][col]) {
-//                        return false;
-//                    }
-//                }
-//            }
-//        }
-//
-//        // grid checker
-//        for (int row = 0; row < 9; row += 3) {
-//            for (int col = 0; col < 9; col += 3) // row, col is start of the 3 by 3 grid
-//            {
-//                for (int pos = 0; pos < 8; pos++) {
-//                    for (int pos2 = pos + 1; pos2 < 9; pos2++) {
-//                        if (rawSudoku[row + pos % 3][col + pos / 3] == rawSudoku[row + pos2 % 3][col + pos2 / 3]) {
-//                            return false;
-//                        }
-//                    }
-//                }
-//            }
-//        }
-        //return true;
+
     }
 
     @Override
@@ -154,6 +119,7 @@ public class SudokuSolver implements ISodukoSolver {
         while (fixed) {
             fixed = false;
 
+            //entfernt die values die aufgrund der Regeln nicht möglich sind
             // Reduce
             for (Unit row : rows) {
                 row.reducePossibleValues();
@@ -165,6 +131,7 @@ public class SudokuSolver implements ISodukoSolver {
                 block.reducePossibleValues();
             }
 
+            //fixiert zahl die übrig bleibt
             // Select
             for (Unit block : blocks) {
                 if (block.tryToSelectValue()) {
@@ -174,6 +141,7 @@ public class SudokuSolver implements ISodukoSolver {
         }
 
         int[][] solvedSudoku = new int[wrappedSudoku.length][wrappedSudoku[0].length];
+        //speichert alle Zahlen ind das finale Integer Arr
         for (int row = 0; row < solvedSudoku.length; row++) {
             for (int col = 0; col < solvedSudoku[row].length; col++) {
                 solvedSudoku[row][col] = wrappedSudoku[row][col].getSelectedValue();
@@ -280,13 +248,11 @@ public class SudokuSolver implements ISodukoSolver {
     private Cell[][] wrapRawSudoku(int[][] rawSudoku) {
         this.wrappedSudoku = new Cell[9][9];
         this.inputSudoku = rawSudoku;
-        this.rows = new ArrayList<>();
-        this.columns = new ArrayList<>();
-        this.blocks = new ArrayList<>();
         for (int row = 0; row < inputSudoku.length; row++) {
             for (int column = 0; column < inputSudoku[row].length; column++) {
                 Cell cell;
                 if (inputSudoku[row][column] != 0) {
+                    //speichert fixen wert
                     cell = new Cell(inputSudoku[row][column]);
                 } else {
                     cell = new Cell();
@@ -298,6 +264,10 @@ public class SudokuSolver implements ISodukoSolver {
     }
 
     private void initializeUnits(Cell[][] wrappedSudoku) {
+        this.rows = new ArrayList<>();
+        this.columns = new ArrayList<>();
+        this.blocks = new ArrayList<>();
+
         for (int row = 0; row < 9; row++) {
             List<Cell> collectionOfCells = new ArrayList<>();
             for (int col = 0; col < 9; col++) {

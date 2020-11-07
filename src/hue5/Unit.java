@@ -22,7 +22,9 @@ public class Unit {
     }
 
     public void reducePossibleValues() {
+        //aus dieser Cell values removen
         for (Cell reducingCell : cells) {
+            //cell mit removebaren values
             for (Cell checkedCell : cells) {
                 if (checkedCell.hasSelectedValue() && checkedCell != reducingCell) {
                     reducingCell.removePossibleValue(checkedCell.getSelectedValue());
@@ -35,6 +37,7 @@ public class Unit {
         Set<Integer> numbers = new HashSet<>();
         for (Cell cell : cells) {
             if (cell.hasSelectedValue()) {
+                //Schaut ob value schon drinnen ist
                 if (!numbers.add(cell.getSelectedValue())) {
                     return false;
                 }
@@ -49,6 +52,7 @@ public class Unit {
         boolean changed = false;
 
         for (Cell cell : cells) {
+            //wenn möglucher, aber kein ficer wert vorhanden
             if (cell.hasSinglePossibleValue() && !cell.hasSelectedValue()) {
                 cell.selectValue(cell.getSinglePossibleValue());
                 changed = true;

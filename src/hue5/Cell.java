@@ -59,7 +59,11 @@ public class Cell {
     }
 
     public int getSinglePossibleValue() {
-        return (hasSinglePossibleValue() ? possibleValues.get(0) : 0);
+        if (hasSinglePossibleValue()) {
+            return possibleValues.get(0);
+        } else {
+            return 0;
+        }
     }
 
     @Override
