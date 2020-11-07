@@ -5,7 +5,14 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -24,7 +31,7 @@ public class SudokuSolver implements ISodukoSolver {
     private List<Unit> blocks;
 
     public SudokuSolver() {
-        //initialize if necessary
+
     }
 
     @Override
@@ -51,57 +58,217 @@ public class SudokuSolver implements ISodukoSolver {
 
     @Override
     public boolean checkSudoku(int[][] rawSudoku) {
-        // row checker
-        for (int row = 0; row < 9; row++) {
-            for (int col = 0; col < 8; col++) {
-                for (int col2 = col + 1; col2 < 9; col2++) {
-                    if (rawSudoku[row][col] == rawSudoku[row][col2]) {
-                        return false;
-                    }
+        initializeUnits(wrapRawSudoku(rawSudoku));
+
+        ExecutorService exec;
+        exec = Executors.newFixedThreadPool(3);
+
+        Callable<Boolean> rowChecker = () -> {
+            // row checker
+            for (Unit row : rows) {
+                if (!row.isCorrect()) {
+                    return false;
                 }
             }
+            return true;
+        };
+
+        Callable<Boolean> columnChecker = () -> {
+            // column checker
+            for (Unit column : columns) {
+                if (!column.isCorrect()) {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        Callable<Boolean> gridChecker = () -> {
+            // grid checker
+            for (Unit block : blocks) {
+                if (!block.isCorrect()) {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        Future<Boolean> rowCheckerResult = exec.submit(rowChecker);
+        Future<Boolean> columnCheckerResult = exec.submit(columnChecker);
+        Future<Boolean> gridCheckerResult = exec.submit(gridChecker);
+        exec.shutdown();
+        try {
+            exec.awaitTermination(30, TimeUnit.SECONDS);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(SudokuSolver.class.getName()).log(Level.SEVERE, null, ex);
         }
 
-// column checker
-        for (int col = 0; col < 9; col++) {
-            for (int row = 0; row < 8; row++) {
-                for (int row2 = row + 1; row2 < 9; row2++) {
-                    if (rawSudoku[row][col] == rawSudoku[row2][col]) {
-                        return false;
-                    }
-                }
-            }
+        try {
+            return rowCheckerResult.get() && columnCheckerResult.get() && gridCheckerResult.get();
+        } catch (InterruptedException | ExecutionException ex) {
+            return false;
         }
-
-// grid checker
-        for (int row = 0; row < 9; row += 3) {
-            for (int col = 0; col < 9; col += 3) // row, col is start of the 3 by 3 grid
-            {
-                for (int pos = 0; pos < 8; pos++) {
-                    for (int pos2 = pos + 1; pos2 < 9; pos2++) {
-                        if (rawSudoku[row + pos % 3][col + pos / 3] == rawSudoku[row + pos2 % 3][col + pos2 / 3]) {
-                            return false;
-                        }
-                    }
-                }
-            }
-        }
-        return true;
+//        // row checker
+//        for (int row = 0; row < 9; row++) {
+//            for (int col = 0; col < 8; col++) {
+//                for (int col2 = col + 1; col2 < 9; col2++) {
+//                    if (rawSudoku[row][col] == rawSudoku[row][col2]) {
+//                        return false;
+//                    }
+//                }
+//            }
+//        }
+//
+//        // column checker
+//        for (int col = 0; col < 9; col++) {
+//            for (int row = 0; row < 8; row++) {
+//                for (int row2 = row + 1; row2 < 9; row2++) {
+//                    if (rawSudoku[row][col] == rawSudoku[row2][col]) {
+//                        return false;
+//                    }
+//                }
+//            }
+//        }
+//
+//        // grid checker
+//        for (int row = 0; row < 9; row += 3) {
+//            for (int col = 0; col < 9; col += 3) // row, col is start of the 3 by 3 grid
+//            {
+//                for (int pos = 0; pos < 8; pos++) {
+//                    for (int pos2 = pos + 1; pos2 < 9; pos2++) {
+//                        if (rawSudoku[row + pos % 3][col + pos / 3] == rawSudoku[row + pos2 % 3][col + pos2 / 3]) {
+//                            return false;
+//                        }
+//                    }
+//                }
+//            }
+//        }
+        //return true;
     }
 
     @Override
     public int[][] solveSudoku(int[][] rawSudoku) {
-        // implement this method
-        return new int[0][0]; // delete this line!
+        initializeUnits(wrapRawSudoku(rawSudoku));
+
+        boolean fixed = true;
+        while (fixed) {
+            fixed = false;
+
+            // Reduce
+            for (Unit row : rows) {
+                row.reducePossibleValues();
+            }
+            for (Unit column : columns) {
+                column.reducePossibleValues();
+            }
+            for (Unit block : blocks) {
+                block.reducePossibleValues();
+            }
+
+            // Select
+            for (Unit block : blocks) {
+                if (block.tryToSelectValue()) {
+                    fixed = true;
+                }
+            }
+        }
+
+        int[][] solvedSudoku = new int[wrappedSudoku.length][wrappedSudoku[0].length];
+        for (int row = 0; row < solvedSudoku.length; row++) {
+            for (int col = 0; col < solvedSudoku[row].length; col++) {
+                solvedSudoku[row][col] = wrappedSudoku[row][col].getSelectedValue();
+            }
+        }
+        return solvedSudoku;
     }
 
     @Override
     public int[][] solveSudokuParallel(int[][] rawSudoku) {
-        // implement this method
-        return new int[0][0]; // delete this line!
+        initializeUnits(wrapRawSudoku(rawSudoku));
+
+        ExecutorService exec;
+        exec = Executors.newFixedThreadPool(9);
+
+        boolean fixed = true;
+        while (fixed) {
+            fixed = false;
+
+            List<Callable<Boolean>> tasks = new ArrayList<>();
+
+            // Reduce
+            for (Unit row : rows) {
+                tasks.add(() -> {
+                    row.reducePossibleValues();
+                    return true;
+                });
+            }
+            try {
+                exec.invokeAll(tasks);
+            } catch (InterruptedException ex) {
+                return new int[0][0];
+            }
+
+            tasks.clear();
+            for (Unit column : columns) {
+                tasks.add(() -> {
+                    column.reducePossibleValues();
+                    return true;
+                });
+            }
+            try {
+                exec.invokeAll(tasks);
+            } catch (InterruptedException ex) {
+                return new int[0][0];
+            }
+
+            tasks.clear();
+            for (Unit block : blocks) {
+                tasks.add(() -> {
+                    block.reducePossibleValues();
+                    return true;
+                });
+            }
+            try {
+                exec.invokeAll(tasks);
+            } catch (InterruptedException ex) {
+                return new int[0][0];
+            }
+
+            // Select
+            tasks.clear();
+            for (Unit block : blocks) {
+                tasks.add(() -> {
+                    return block.tryToSelectValue();
+                });
+            }
+            try {
+                List<Future<Boolean>> selectResults = exec.invokeAll(tasks);
+                for (Future<Boolean> result : selectResults) {
+                    if (result.get()) {
+                        fixed = true;
+                    }
+                }
+            } catch (InterruptedException | ExecutionException ex) {
+                return new int[0][0];
+            }
+        }
+
+        int[][] solvedSudoku = new int[wrappedSudoku.length][wrappedSudoku[0].length];
+        for (int row = 0; row < solvedSudoku.length; row++) {
+            for (int col = 0; col < solvedSudoku[row].length; col++) {
+                solvedSudoku[row][col] = wrappedSudoku[row][col].getSelectedValue();
+            }
+        }
+        return solvedSudoku;
     }
 
-    public long benchmark() {
+    public long benchmark(int[][] rawSudoku) {
+        long time = System.currentTimeMillis();
+        for (int i = 0; i < 10; i++) {
+            checkSudoku(rawSudoku);
+            solveSudokuParallel(rawSudoku);
+        }
+        return (System.currentTimeMillis() - time) / 10;
     }
 
     // add helper methods here if necessary
@@ -111,8 +278,53 @@ public class SudokuSolver implements ISodukoSolver {
     }
 
     private Cell[][] wrapRawSudoku(int[][] rawSudoku) {
+        this.wrappedSudoku = new Cell[9][9];
+        this.inputSudoku = rawSudoku;
+        this.rows = new ArrayList<>();
+        this.columns = new ArrayList<>();
+        this.blocks = new ArrayList<>();
+        for (int row = 0; row < inputSudoku.length; row++) {
+            for (int column = 0; column < inputSudoku[row].length; column++) {
+                Cell cell;
+                if (inputSudoku[row][column] != 0) {
+                    cell = new Cell(inputSudoku[row][column]);
+                } else {
+                    cell = new Cell();
+                }
+                wrappedSudoku[row][column] = cell;
+            }
+        }
+        return wrappedSudoku;
     }
 
     private void initializeUnits(Cell[][] wrappedSudoku) {
+        for (int row = 0; row < 9; row++) {
+            List<Cell> collectionOfCells = new ArrayList<>();
+            for (int col = 0; col < 9; col++) {
+                collectionOfCells.add(wrappedSudoku[row][col]);
+            }
+            rows.add(new Unit(collectionOfCells));
+        }
+
+        for (int col = 0; col < 9; col++) {
+            List<Cell> collectionOfCells = new ArrayList<>();
+            for (int row = 0; row < 9; row++) {
+                collectionOfCells.add(wrappedSudoku[row][col]);
+            }
+            columns.add(new Unit(collectionOfCells));
+        }
+
+        for (int row = 0; row < 9; row += 3) {
+            for (int col = 0; col < 9; col += 3) // row, col is start of the 3 by 3 grid
+            {
+                List<Cell> collectionOfCells = new ArrayList<>();
+                for (int row2 = row; row2 < row + 3; row2++) {
+                    for (int col2 = col; col2 < col + 3; col2++) {
+                        collectionOfCells.add(wrappedSudoku[row2][col2]);
+                    }
+                }
+                blocks.add(new Unit(collectionOfCells));
+            }
+        }
     }
 }
